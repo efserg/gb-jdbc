@@ -88,9 +88,12 @@ public class JdbcApp {
     }
 
     public void selectByName(String name) throws SQLException {
-        final ResultSet resultSet = statement.executeQuery("SELECT * FROM students WHERE name = '" + name + "'");
-        while (resultSet.next()) {
-            System.out.printf("%d - %s - %d\n", resultSet.getInt(1), resultSet.getString(2), resultSet.getInt(3));
+        try (final PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM students WHERE name = ?")) {
+            preparedStatement.setString(1, name);
+            final ResultSet resultSet = preparedStatement.executeQuery();
+            while (resultSet.next()) {
+                System.out.printf("%d - %s - %d\n", resultSet.getInt(1), resultSet.getString(2), resultSet.getInt(3));
+            }
         }
     }
 }
