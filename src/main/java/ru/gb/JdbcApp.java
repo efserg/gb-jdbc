@@ -48,19 +48,31 @@ public class JdbcApp {
 
     public void connect() throws SQLException {
         connection = DriverManager.getConnection("jdbc:sqlite:javadb.db");
+        connection.setAutoCommit(false);
         statement = connection.createStatement();
     }
 
     public void createTable() throws SQLException {
-        statement.executeUpdate("CREATE TABLE IF NOT EXISTS students (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "name TEXT," +
-                "score INTEGER" +
-                ");");
+        try {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS students (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "name TEXT," +
+                    "score INTEGER" +
+                    ");");
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+            connection.rollback();
+        }
     }
 
     public void dropTable() throws SQLException {
-        statement.executeUpdate("DROP TABLE IF EXISTS students");
+        try {
+            statement.executeUpdate("DROP TABLE IF EXISTS students");
+            connection.commit();
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+            connection.rollback();
+        }
     }
 
     public void insert(final String name, final Integer score) throws SQLException {
@@ -111,4 +123,5 @@ public class JdbcApp {
             return preparedStatement.executeBatch();
         }
     }
+
 }
