@@ -6,6 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Random;
 
 public class JdbcApp {
     private Connection connection;
@@ -21,7 +22,10 @@ public class JdbcApp {
             jdbcApp.update(1, 100);
             jdbcApp.select(1);
             jdbcApp.select(2);
-            jdbcApp.selectByName("bob' union SELECT 1, sql, 1 FROM sqlite_master --");
+            jdbcApp.selectByName("bob%' union SELECT 1, sql, 1 FROM sqlite_master --");
+            jdbcApp.batchInsert();
+            jdbcApp.selectByName("Bob%");
+            jdbcApp.dropTable();
         } catch (SQLException e) {
             e.printStackTrace();
         } finally {
@@ -88,12 +92,23 @@ public class JdbcApp {
     }
 
     public void selectByName(String name) throws SQLException {
-        try (final PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM students WHERE name = ?")) {
+        try (final PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM students WHERE name like ?")) {
             preparedStatement.setString(1, name);
             final ResultSet resultSet = preparedStatement.executeQuery();
             while (resultSet.next()) {
                 System.out.printf("%d - %s - %d\n", resultSet.getInt(1), resultSet.getString(2), resultSet.getInt(3));
             }
+        }
+    }
+
+    public int[] batchInsert() throws SQLException {
+        try (final PreparedStatement preparedStatement = connection.prepareStatement("INSERT INTO students (name, score) VALUES (?, ?)")) {
+            for (int i = 0; i < 10; i++) {
+                preparedStatement.setString(1, "Bob" + i);
+                preparedStatement.setInt(2, new Random().nextInt(100));
+                preparedStatement.addBatch();
+            }
+            return preparedStatement.executeBatch();
         }
     }
 }
