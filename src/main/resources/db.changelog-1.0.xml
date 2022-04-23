@@ -20,4 +20,21 @@
         </createTable>
     </changeSet>
 
+    <changeSet id="2" author="serg">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="students"/>
+            </not>
+        </preConditions>
+        <createTable tableName="students">
+            <column name="id" type="int" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="score" type="int"/>
+        </createTable>
+    </changeSet>
+
 </databaseChangeLog>

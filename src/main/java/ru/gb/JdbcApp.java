@@ -9,119 +9,83 @@ import java.sql.Statement;
 import java.util.Random;
 
 public class JdbcApp {
-    private Connection connection;
-    private Statement statement;
-
     public static void main(String[] args) {
-        final JdbcApp jdbcApp = new JdbcApp();
-        try {
-            jdbcApp.connect();
-            jdbcApp.createTable();
-            jdbcApp.insert("Bob", 95);
-            jdbcApp.insert("John", 80);
-            jdbcApp.update(1, 100);
-            jdbcApp.select(1);
-            jdbcApp.select(2);
-            jdbcApp.selectByName("bob%' union SELECT 1, sql, 1 FROM sqlite_master --");
-            jdbcApp.batchInsert();
-            jdbcApp.selectByName("Bob%");
-            jdbcApp.dropTable();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            jdbcApp.disconnect();
-        }
-    }
-
-    private void disconnect() {
-        try {
-            if (statement != null) {
-                statement.close();
-            }
-            if (connection != null) {
-                connection.close();
-            }
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:javadb.db")) {
+            createTable(connection);
+            insert(connection, "Bob", 90);
+            insert(connection, "Smith", 99);
+            insert(connection, "John", 75);
+            select(connection);
+            // sql injection: SELECT * FROM students WHERE name = 'John' union select 1, sql, 1 from sql_master --'"
+            selectByName(connection, "John' union select 1, sql, 1 from sqlite_master --");
+            dropById(connection, 1);
+            bulkInsert(connection);
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    public void connect() throws SQLException {
-        connection = DriverManager.getConnection("jdbc:sqlite:javadb.db");
-        connection.setAutoCommit(false);
-        statement = connection.createStatement();
-    }
-
-    public void createTable() throws SQLException {
-        try {
-            statement.executeUpdate("CREATE TABLE IF NOT EXISTS students (" +
-                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                    "name TEXT," +
-                    "score INTEGER" +
-                    ");");
-        } catch (SQLException throwables) {
-            throwables.printStackTrace();
-            connection.rollback();
+    private static void dropById(Connection connection, int id) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("DELETE FROM students WHERE id = ?")) {
+            statement.setInt(1, id);
+            statement.executeUpdate();
         }
+
     }
 
-    public void dropTable() throws SQLException {
-        try {
-            statement.executeUpdate("DROP TABLE IF EXISTS students");
-            connection.commit();
-        } catch (SQLException throwables) {
-            throwables.printStackTrace();
-            connection.rollback();
-        }
-    }
-
-    public void insert(final String name, final Integer score) throws SQLException {
-//        statement.executeUpdate("INSERT INTO students(name, score) VALUES (" + name + ", " + score + ")"); // sql injection!!!
-        try (final PreparedStatement preparedStatement = connection.prepareStatement("INSERT INTO students(name, score) VALUES (?, ?)")) {
-            preparedStatement.setString(1, name);
-            preparedStatement.setInt(2, score);
-            preparedStatement.executeUpdate();
-        }
-    }
-
-    public void update(final Integer id, final Integer score) throws SQLException {
-//        statement.executeUpdate("UPDATE students SET score = " + score + " where id = " + id); // sql injection!!!
-        try (final PreparedStatement preparedStatement = connection.prepareStatement("UPDATE students SET score = ? where id = ?")) {
-            preparedStatement.setInt(1, score);
-            preparedStatement.setInt(2, id);
-            preparedStatement.executeUpdate();
-        }
-    }
-
-    public void select(Integer id) throws SQLException {
-        try (final PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM students WHERE id = ?")) {
-            preparedStatement.setInt(1, id);
-            final ResultSet resultSet = preparedStatement.executeQuery();
-            if (resultSet.next()) {
-                System.out.printf("%d - %s - %d\n", resultSet.getInt(1), resultSet.getString(2), resultSet.getInt(3));
+    private static void selectByName(Connection connection, String name) throws SQLException {
+        try (final PreparedStatement statement = connection.prepareStatement("SELECT * FROM students WHERE name = ?")) {
+            statement.setString(1, name);
+            final ResultSet rs = statement.executeQuery();
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                String nameDB = rs.getString("name");
+                int score = rs.getInt("score");
+                System.out.printf("%d - %s - %d\n", id, nameDB, score);
             }
         }
     }
 
-    public void selectByName(String name) throws SQLException {
-        try (final PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM students WHERE name like ?")) {
-            preparedStatement.setString(1, name);
-            final ResultSet resultSet = preparedStatement.executeQuery();
-            while (resultSet.next()) {
-                System.out.printf("%d - %s - %d\n", resultSet.getInt(1), resultSet.getString(2), resultSet.getInt(3));
+    private static void select(Connection connection) throws SQLException {
+        try (final PreparedStatement statement = connection.prepareStatement("SELECT * FROM students")) {
+            final ResultSet rs = statement.executeQuery();
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                String name = rs.getString("name");
+                int score = rs.getInt("score");
+                System.out.printf("%d - %s - %d\n", id, name, score);
             }
         }
     }
 
-    public int[] batchInsert() throws SQLException {
-        try (final PreparedStatement preparedStatement = connection.prepareStatement("INSERT INTO students (name, score) VALUES (?, ?)")) {
+    private static void bulkInsert(Connection connection) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("INSERT INTO students (name, score) VALUES (?, ?)")) {
             for (int i = 0; i < 10; i++) {
-                preparedStatement.setString(1, "Bob" + i);
-                preparedStatement.setInt(2, new Random().nextInt(100));
-                preparedStatement.addBatch();
+                statement.setString(1, "name" + i);
+                statement.setInt(2, new Random().nextInt(100));
+                statement.addBatch();
             }
-            return preparedStatement.executeBatch();
+            statement.executeBatch();
         }
     }
 
+    private static void insert(Connection connection, String name, int score) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("INSERT INTO students (name, score) VALUES (?, ?)")) {
+            statement.setString(1, name);
+            statement.setInt(2, score);
+            statement.executeUpdate();
+        }
+    }
+
+
+    private static void createTable(Connection connection) throws SQLException {
+        try (final PreparedStatement statement = connection.prepareStatement("" +
+                " CREATE TABLE IF NOT EXISTS students (" +
+                "    id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "    name TEXT, " +
+                "    score INTEGER" +
+                ")")) {
+            statement.executeUpdate();
+        }
+    }
 }
